@@ -1,85 +1,30 @@
-import pprint
-import json
-from rplidarc1 import RPLidar
-import asyncio
-import logging
-import time
-import math
+"""floor2pixel.py
+
+Compute projector pixel coordinates for a floor point M(x,y) given the
+correspondence between four floor points A,B,C,D and projector pixels.
+
+Mapping uses a 3x3 homography H so that [u, v, 1]^T ~ H [x, y, 1]^T.
+
+Example mapping (used in __main__):
+  A (x1, y1) -> (0,0)        top-left
+  B (x2, y2) -> (0,600)      bottom-left
+  C (x3, y3) -> (800,600)    bottom-right
+  D (x4, y4) -> (800,0)      top-right
+
+The file provides:
+ - compute_homography(src, dst) -> H
+ - map_point(H, x, y) -> (u, v)
+ - a small runnable test when executed directly
+"""
+
+from __future__ import annotations
 import numpy as np
+import sys
 from typing import Sequence, Tuple
+import cv2
+import math
+import pyautogui  # Thêm ở đầu file nếu chưa có
 
-"""
-This module provides an example of how to use the RPLidar class to perform
-a simple scan and process the results.
-"""
-
-async def main(lidar: RPLidar):
-    """
-    Main coroutine that demonstrates how to use the RPLidar class.
-
-    This function creates three tasks:
-    1. A task to wait for a specified time and then stop the scan
-    2. A task to print the scan results as they are received
-    3. A task to perform the scan itself
-
-    After the scan is complete, it prints the final scan results and resets the device.
-
-    Args:
-        lidar (RPLidar): An initialized RPLidar instance.
-    """
-    async def _run_scan_safe():
-        """Start the scan but catch synchronous errors from simple_scan.
-
-        If `lidar.simple_scan()` raises before returning a coroutine (e.g.
-        because the device returned an unexpected response descriptor), we
-        catch the exception here, log it, and set the stop_event so other
-        tasks can shut down cleanly instead of being cancelled by the
-        TaskGroup failing to create the task.
-        """
-        try:
-            coro = lidar.simple_scan_timestamp(make_return_dict=True)
-            # If simple_scan returned a coroutine, await it
-            if asyncio.iscoroutine(coro):
-                await coro
-        except Exception as e:
-            print(f"Scan start failed: {e}")
-            try:
-                lidar.stop_event.set()
-            except Exception:
-                pass
-
-    async with asyncio.TaskGroup() as tg:
-        tg.create_task(wait_and_stop(10, lidar.stop_event))
-        # Pass lidar.output_dict so the printer can augment it with timestamps
-        # tg.create_task(queue_printer(lidar.output_queue, lidar.stop_event, lidar.output_dict))
-        tg.create_task(_run_scan_safe())
-
-    if lidar.output_dict:
-        pprint.pp(sorted(lidar.output_dict.items()))
-        # Save the aggregated output_dict to a text file in JSON format
-        try:
-            # Sort the output_dict by key (ascending) and write as a dict
-            sorted_items = sorted(lidar.output_dict.items(), key=lambda kv: kv[0])
-            sorted_dict = {k: v for k, v in sorted_items}
-            with open("lidar_output.txt", "w", encoding="utf-8") as f:
-                json.dump(sorted_dict, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            print(f"Failed to write lidar.output_dict to file: {e}")
-
-    lidar.reset()
-
-async def wait_and_stop(t, event: asyncio.Event):
-    """
-    Wait for a specified time and then set an event to stop the scan.
-
-    Args:
-        t (float): The time to wait in seconds.
-        event (asyncio.Event): The event to set when the time has elapsed.
-    """
-    print("Start wait for end event")
-    await asyncio.sleep(t)
-    print("Setting stop event")
-    event.set()
 
 def compute_homography(src_pts: Sequence[Tuple[float, float]], dst_pts: Sequence[Tuple[float, float]]) -> np.ndarray:
     """
@@ -180,6 +125,41 @@ def polar_to_cartesian_list(polar_list, angle_unit='degree'):
         cartesian.append((x, y))
     return cartesian
 
+
+def _example1():
+     
+    x1, y1 = 1.0, 1.0       # A
+    x2, y2 = 1.2, 2.5       # B
+    x3, y3 = -1.2, 2.5      # C
+    x4, y4 = -1.0, 1.0      # D
+
+    # Provide points in the given A,B,C,D order then enforce CCW with A as first
+    src = [(x1, y1), (x2, y2), (x3, y3), (x4, y4)]
+    dst = [(0.0, 0.0), (0.0, 600.0), (800.0, 600.0), (800.0, 0.0)]
+    # H = compute_homography(src, dst)
+    H = compute_homography(src, dst)
+    xm, ym = 0.6, 2.5
+    u_m, v_m = map_point(H, xm, ym)
+    print(f"Floor point M({xm:.6f}, {ym:.6f}) -> pixel (u,v) = ({u_m:.6f}, {v_m:.6f})")
+
+def _example2():
+
+    # Nhập khoảng cách và góc cho 4 đỉnh (theo độ)
+    polar_points = [
+        (1.141, 45),  # r1, theta1
+        (2.773, 25.64),  # r2, theta2
+        (2.773, 334.36), # r3, theta3
+        (1.141, 315)   # r4, theta4
+    ]
+    cartesian_points = polar_to_cartesian_list(polar_points, angle_unit='degree')
+    
+    dst = [(0.0, 0.0), (0.0, 600.0), (800.0, 600.0), (800.0, 0.0)]
+    H = compute_homography(cartesian_points, dst)
+    M = (2, 350)
+    (xm, ym) = polar_to_cartesian_list([M], angle_unit='degree')[0]
+    u_m, v_m = map_point(H, xm, ym)
+    print(f"Floor point M({xm:.6f}, {ym:.6f}) -> pixel (u,v) = ({u_m:.6f}, {v_m:.6f})")
+
 def _example3():
 
     # Nhập khoảng cách và góc cho 4 đỉnh (theo độ)
@@ -203,15 +183,9 @@ def _example3():
     else:
         print(f"Floor point M({xm:.6f}, {ym:.6f}) is outside the quadrilateral; skipping mapping")
 
-if __name__ == "__main__":
-    logging.basicConfig(level=0)
-    # lidar = RPLidar("/dev/ttyUSB0", 460800) # Linux/Mac
-    lidar = RPLidar("\\\\.\\COM6", 460800) # Comm port 6 on Windows
-
+if __name__ == '__main__':
     try:
-        asyncio.run(main(lidar))
-    except KeyboardInterrupt:
-        pass
-    finally:
-        time.sleep(1)
-        lidar.reset()
+        _example3()
+    except Exception as e:
+        print('Error during example run:', e, file=sys.stderr)
+        raise

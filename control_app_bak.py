@@ -180,28 +180,6 @@ def polar_to_cartesian_list(polar_list, angle_unit='degree'):
         cartesian.append((x, y))
     return cartesian
 
-def _example3():
-
-    # Nhập khoảng cách và góc cho 4 đỉnh (theo độ)
-    polar_points = [
-        (1.141, 45),  # r1, theta1
-        (2.773, 25.64),  # r2, theta2
-        (2.773, 334.36), # r3, theta3
-        (1.141, 315)   # r4, theta4
-    ]
-    cartesian_points = polar_to_cartesian_list(polar_points, angle_unit='degree')
-    
-    dst = [(0.0, 0.0), (0.0, 600.0), (800.0, 600.0), (800.0, 0.0)]
-    H = compute_homography(cartesian_points, dst)
-    M = (4, 350)
-    (xm, ym) = polar_to_cartesian_list([M], angle_unit='degree')[0]
-    inside = point_in_polygon((xm, ym), cartesian_points)
-    if inside:
-        u_m, v_m = map_point(H, xm, ym)
-        print(f"Floor point M({xm:.6f}, {ym:.6f}) is inside the quadrilateral")
-        print(f"Mapped pixel (u,v) = ({u_m:.6f}, {v_m:.6f})")
-    else:
-        print(f"Floor point M({xm:.6f}, {ym:.6f}) is outside the quadrilateral; skipping mapping")
 
 if __name__ == "__main__":
     logging.basicConfig(level=0)
