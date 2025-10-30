@@ -65,6 +65,19 @@ async def main(lidar: RPLidar):
 
     lidar.reset()
 
+async def wait_and_stop(t, event: asyncio.Event):
+    """
+    Wait for a specified time and then set an event to stop the scan.
+
+    Args:
+        t (float): The time to wait in seconds.
+        event (asyncio.Event): The event to set when the time has elapsed.
+    """
+    print("Start wait for end event")
+    await asyncio.sleep(t)
+    print("Setting stop event")
+    event.set()
+
 if __name__ == "__main__":
     logging.basicConfig(level=0)
     # lidar = RPLidar("/dev/ttyUSB0", 460800) # Linux/Mac
