@@ -1,0 +1,34 @@
+Nghiên cứu các lý thuyết về đánh giá năng lực:
+Giáo trình: Kiểm tra đánh giá trong Giáo dục - Nguyễn Công Khanh
+Năng lực là khả năng làm chủ những hệ thống kiến thức, ký năng, thái độ và vận hành (kết nối) chúng một cách hợp lý vào thực hiện thành công nhiệm vụ hoặc giải quyết hiệu quả vấn đề đặt ra của cuộc sống. [trang 106]
+Năng lực của học sinh là khả năng làm chủ những hệ thống kiến thức kí năng, thái độ... phù hợp với lứa tuổi và vận hành (kết nối) chúng một cách hợp lý vào thực hiện thành công nhiệm vụ học tập, giải quyết hiệu quả những vấn đề đặt ra cho chính các em trong cuộc sống.
+
+Huệ
+Phương Thủy
+Quốc Anh
+Nhật An
+nội dung công việc nghiên cứu trong 2 tuần: 15/10-29/10
+1. Tập trung nghiên cứu cơ sở lý thuyết về "Đánh giá năng lực" của học sinh tiểu học theo khung đánh giá mới của Bộ giáo dục.
+2. Tiếp tục làm sản phẩm, và nội dung trò chơi phục vụ cho việc đánh giá năng lực học sinh.
+3. Công việc khác, nhóm NCS của lab E401 lên kế hoạch báo cáo vào 14/11 (đợt báo cáo do Khoa Tự động hóa - thầy Dương Minh Đức tổ chức); làm báo cáo kết thúc học phần TS (môn Kỹ thuật nhận dạng và Tương tác người máy).
+4. Xin ý kiến các thầy về việc đổi tên đề tài (thời hạn đổi theo qui chế là trong vòng 2 năm đầu)
+
+1. Về cơ sở lý luận cho đánh giá năng lực thì em đang nghiên cứu cuốn sách "Kiểm tra đánh giá trong giáo dục" lần tái bản thứ 9 năm 2025 của thầy Nguyễn Công Khanh; các bài báo trong và ngoài nước về đánh giá năng lực học sinh.
+Năng lực = Kiến thức + Kỹ năng + Thái độ
+trong đánh giá năng lực, và sử dụng các công cụ đánh giá trong giáo dục (như bảng hỏi, trắc nghiệm, tự luận, vấn đáp, quan sát quá trình...) thì nội dung trong công cụ là quan trọng nhất, quyết định đến sự chính xác và đúng đắn của phép đo.
+trong lần tái bản thứ 9, cuốn sách có đưa thêm vào phụ lục số 16: phương thức, quy trình, khung chuẩn đánh giá mức độ phát triển năng lực chung, phẩm chất và năng lực đặc thù của người học
+kết hợp với tài liệu tập huấn hướng dẫn đánh giá học sinh tiểu học môn toán
+thì em thấy đề tài của em có thể đề xuất một phương pháp đánh giá mới là sử dụng trò chơi (hai phương pháp đánh giá đã được nêu là: 1) sử dụng các chỉ báo trong khung chuẩn đánh giá năng lực đặc thù để thiết kế các bài tập đánh giá; 2) sử dụng bài kiểm tra cuối kì)
+em có lưu các tài liệu em đọc trong 2 tuần vừa rồi trên mica google drive ạ https://drive.google.com/drive/folders/1rdil69zW80PQ9tWNdjrdkfV0Axil-i8A?usp=sharing
+2) về việc làm sản phẩm và trò chơi giáo dục. Do sản phẩm vẫn còn một số lỗi cơ khí, sơn bề mặt, in 3D các phần ốp nhựa nên vẫn chưa hoàn thiện. Về phần code firmware, với phiên bản làm trên android sử dụng Kit G350 của BKAV nên phụ thuộc vào team code bên đấy; phiên bản chạy windows thì em đang chuyển sang python code cho phần đọc lidar (đã giao tiếp và điều khiển đọc dữ liệu từ lidar; em sẽ tiếp tục lọc nhiễu và gom các điểm rất gần nhau để suy ra 1 vật (bàn chân) và giao tiếp với game để tạo thêm mode chơi game nữa là 3-Team play- chơi theo đội (2 mode đã định nghĩa trước là 1-Single mode (luyện tập) và 2-Compete mode (Đấu trường)). 
+Về nội dung trò chơi, do bên Vinschool không đồng ý cho thu hình. Nên em đang phát triển các trò chơi khác phù hợp với bộ sách Cánh diều và Kết nối tri thức với cuộc sống. 
+Để tăng tính thuyết phục của công cụ đánh giá, thì em dự định sẽ hỏi ý kiến chuyên gia về nội dung này (khi công cụ đã tương đối ổn). Các chuyên gia em dự định hỏi:
+Viện KHGD
+1. GS.TS Nguyễn Công Khanh.
+2. TS. Nguyễn Thị Kim Oanh
+Trung tâm IPD (viện phát triển tiềm năng con người)
+1. GS.TS Nguyễn Võ Kỳ Anh (cô Hương giới thiệu)
+
+4) Về đổi tên đề tài, theo qui chế thì cần thực hiện trong vòng 2 năm đầu. Theo nhận xét của Thầy Nguyễn Việt Sơn, hôm em báo cáo tổng quan, thầy có nói rằng đề tài có bị rộng quá không? Và đúng là em cũng bị nhầm hướng sang student performance. Nên em cũng đang suy nghĩ thu gọn lại phạm vi của đề tài một chút và cập nhật tên đề tài luận văn ạ.
+ah, có một việc nữa em muốn hỏi ý kiến các thầy là em muốn đưa logo của BKHN và MICA vào sản phẩm thì có được không ạ, và phải làm như thế nào
+(ý em là xin ý kiến trường và viện MICA như thế nào)
