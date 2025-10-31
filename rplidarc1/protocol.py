@@ -7,6 +7,8 @@ import serial
 import time
 from .utils import ByteEnum
 
+import math
+
 """
 This module implements the RPLidar protocol for communication with the device.
 It defines request and response handling, byte definitions, and data parsing
@@ -298,14 +300,11 @@ class Response:
             quality, angle, distance = parsed_tuple
             distance = None if distance == 0 else distance
             if output_dict is not None:
-                output_dict[angle] = distance
-            await output_queue.put({"q": quality, "a_deg": angle, "d_mm": distance})
-        output_queue.task_done()
-        # Signal consumers that no more items will be produced by putting a sentinel
-        try:
-            await output_queue.put(None)
-        except Exception:
-            Response.logger.debug("Could not put sentinel into output_queue")
+                i = math.floor(angle * 3) - 1
+                if i < 0:
+                    i = 0
+                output_dict[i] = (distance, angle)
+            
         Response.logger.info("Completed processing.")
         await asyncio.sleep(0)
 
@@ -365,7 +364,7 @@ class Response:
             distance = None if distance == 0 else distance
             # update aggregated dict to store distance and timestamp
             if output_dict is not None:
-                output_dict[angle] = {"d_mm": distance, "ts": timestamp}
+                output_dict[angle] = (distance, timestamp)
             
         Response.logger.info("Completed processing.")
         await asyncio.sleep(0)

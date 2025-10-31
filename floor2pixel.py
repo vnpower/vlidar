@@ -24,6 +24,8 @@ from typing import Sequence, Tuple
 import cv2
 import math
 import pyautogui  # Thêm ở đầu file nếu chưa có
+import time
+from datetime import datetime
 
 
 def compute_homography(src_pts: Sequence[Tuple[float, float]], dst_pts: Sequence[Tuple[float, float]]) -> np.ndarray:
@@ -183,9 +185,108 @@ def _example3():
     else:
         print(f"Floor point M({xm:.6f}, {ym:.6f}) is outside the quadrilateral; skipping mapping")
 
+
+def _example4():
+
+    # Nhập khoảng cách và góc cho 4 đỉnh (theo độ)
+    polar_points = [
+        (1.141, 45),  # r1, theta1
+        (2.773, 25.64),  # r2, theta2
+        (2.773, 334.36), # r3, theta3
+        (1.141, 315)   # r4, theta4
+    ]
+    cartesian_points = polar_to_cartesian_list(polar_points, angle_unit='degree')
+
+    dst = [(0.0, 0.0), (0.0, 600.0), (800.0, 600.0), (800.0, 0.0)]
+    H = compute_homography(cartesian_points, dst)
+
+    # Try to get one scan sample from RPLidar; fallback to simulated sample
+    def read_one_lidar_sample(timeout: float = 5.0):
+        try:
+            import asyncio
+            from rplidarc1.scanner import RPLidar
+
+            async def _read_once(lidar: RPLidar, timeout_s: float):
+                try:
+                    coro = lidar.simple_scan_timestamp(make_return_dict=False)
+                except Exception:
+                    return None
+                task = asyncio.create_task(coro)
+                try:
+                    item = await asyncio.wait_for(lidar.output_queue.get(), timeout=timeout_s)
+                    try:
+                        lidar.stop_event.set()
+                    except Exception:
+                        pass
+                    return item
+                except Exception:
+                    return None
+                finally:
+                    try:
+                        task.cancel()
+                    except Exception:
+                        pass
+
+            lidar = RPLidar()
+            return asyncio.run(_read_once(lidar, timeout))
+        except Exception:
+            return None
+
+    sample = read_one_lidar_sample(timeout=5.0)
+    if sample is None:
+        print('No LIDAR sample available; using simulated example M')
+        M = (2, 350)  # (r meters, theta degrees)
+    else:
+        # Robust parsing of sample dict
+        try:
+            if isinstance(sample, dict):
+                angle = sample.get('a_deg') or sample.get('angle') or sample.get('a')
+                dist = sample.get('d_mm') or sample.get('distance') or sample.get('d') or sample.get('dist')
+            else:
+                # Unexpected type
+                angle = None
+                dist = None
+
+            if angle is None:
+                angle = 0.0
+            angle = float(angle)
+
+            if dist is None:
+                d_val = 0.0
+            else:
+                d_val = float(dist)
+                # Convert mm -> meters if value large
+                if d_val > 50:  # >50 meters unlikely; assume mm
+                    d_val = d_val / 1000.0
+
+            M = (d_val, angle)
+        except Exception:
+            print('Unexpected LIDAR sample format; using simulated example M')
+            M = (2, 350)
+
+    # Convert to Cartesian, check inside, map and save
+    (xm, ym) = polar_to_cartesian_list([M], angle_unit='degree')[0]
+    inside = point_in_polygon((xm, ym), cartesian_points)
+    if not inside:
+        print(f"Floor point M({xm:.6f}, {ym:.6f}) is outside the quadrilateral; skipping mapping")
+        return
+
+    u_m, v_m = map_point(H, xm, ym)
+    ts = time.time()
+    iso = datetime.fromtimestamp(ts).isoformat()
+    line = f"{iso},{ts:.6f},{u_m:.6f},{v_m:.6f}\n"
+    try:
+        with open('m_pixel.txt', 'a', encoding='utf-8') as f:
+            f.write(line)
+    except Exception as e:
+        print('Failed to write pixel to file:', e)
+        return
+
+    print(f"Floor point M({xm:.6f}, {ym:.6f}) is inside the quadrilateral")
+    print(f"Mapped pixel (u,v) = ({u_m:.6f}, {v_m:.6f}) and saved to m_pixel.txt")
 if __name__ == '__main__':
     try:
-        _example3()
+        _example4()
     except Exception as e:
         print('Error during example run:', e, file=sys.stderr)
         raise
