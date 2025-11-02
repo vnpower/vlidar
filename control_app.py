@@ -164,6 +164,7 @@ async def wait_and_stop(t, event: asyncio.Event):
     await asyncio.sleep(t)
     print("Setting stop event")
     event.set()
+    print(lidar.output_dict)
 
 
 def compute_homography(src_pts: Sequence[Tuple[float, float]], dst_pts: Sequence[Tuple[float, float]]) -> np.ndarray:

@@ -155,7 +155,7 @@ class Response:
 
         response_mode = ResponseMode(mode)
 
-        Response.logger.warning(f"In waiting: {serial.in_waiting}")
+        # Response.logger.warning(f"In waiting: {serial.in_waiting}")
 
         return length, response_mode
 
@@ -309,7 +309,7 @@ class Response:
         await asyncio.sleep(0)
 
     @staticmethod
-    async def multi_response_handler_timestamp(
+    async def multi_response_handler_with_timestamp(
         serial: serial.Serial,
         stop_event: asyncio.Event,
         output_queue: asyncio.Queue,
@@ -333,7 +333,7 @@ class Response:
         """
         Response.logger.debug("Creating multiresponse coroutine.")
         byte_error_handling = False
-        data_out_buffer: bytes = bytes(0)
+        data_out_buffer: bytes = bytes(0) # khởi tạo chuỗi bytes rỗng
         while not stop_event.is_set():
             if serial.in_waiting < 5:
                 Response.logger.debug("Waiting for data.")
@@ -415,9 +415,6 @@ class Response:
         """
         quality = (response[0] >> 2) & 0b111111
         angle = ((response[1] & 0b01111111) | (response[2] << 7)) / 64
-        angle = round(
-            (round(angle * 3) / 3), 2
-        )  # round to closest 0.33 which is precision of rplidarc1
         if angle > 360:
             Response.logger.error(
                 f"calculated angle {angle} from {response}. Angles should not be >360 so this result will be ignored."
@@ -426,66 +423,6 @@ class Response:
         distance = (response[3] | (response[4] << 8)) / 4
         return quality, angle, distance
     
-    @staticmethod
-    def _parse_simple_scan_timestamp_result(
-        response: bytes,
-    ) -> Optional[Tuple[int, float, float, float]]:
-        """
-        Parse a simple scan result from the RPLidar device.
-
-        Args:
-            response (bytes): The response data to parse.
-
-        Returns:
-            Tuple[int, float, float, float]: A tuple containing:
-                - quality: The quality of the scan point (0-63)
-                - angle: The angle of the scan point in degrees (0-359.99)
-                - distance: The distance of the scan point in millimeters
-                - timestamp: The timestamp (seconds since epoch) when the data
-                             was read or derived. If a timestamp is encoded in
-                             the response bytes it will be used; otherwise the
-                             current time (time.time()) will be returned.
-        """
-        quality = (response[0] >> 2) & 0b111111
-        angle = ((response[1] & 0b01111111) | (response[2] << 7)) / 64
-        angle = round(
-            (round(angle * 3) / 3), 2
-        )  # round to closest 0.33 which is precision of rplidarc1
-        if angle > 360:
-            Response.logger.error(
-                f"calculated angle {angle} from {response}. Angles should not be >360 so this result will be ignored."
-            )
-            return None
-        distance = (response[3] | (response[4] << 8)) / 4
-
-        # Try to extract a timestamp from the remaining bytes if present.
-        # The classic simple scan response is 5 bytes long; if the response
-        # contains extra bytes (e.g., timestamp info) we attempt to decode a
-        # 4-byte little-endian unsigned int representing epoch seconds or
-        # milliseconds. If not present, fall back to current time.
-        timestamp = time.time()
-        try:
-            # If response has at least 9 bytes, assume bytes[5:9] hold a uint32
-            if len(response) >= 9:
-                ts_raw = response[5:9]
-                # interpret as little-endian unsigned int
-                ts_val = int(ts_raw[0] | (ts_raw[1] << 8) | (ts_raw[2] << 16) | (ts_raw[3] << 24))
-                # Heuristics: if value looks like milliseconds (very large), convert
-                if ts_val > 1e12:
-                    # milliseconds since epoch
-                    timestamp = ts_val / 1000.0
-                elif ts_val > 1e9:
-                    # seconds since epoch
-                    timestamp = float(ts_val)
-                else:
-                    # suspiciously small; keep fallback time.time()
-                    timestamp = time.time()
-        except Exception:
-            # Any parse error -> leave timestamp as current time
-            timestamp = time.time()
-
-        return quality, angle, distance, timestamp
-
     @staticmethod
     def _check_response_sync_bytes(descriptor: bytes):
         """
