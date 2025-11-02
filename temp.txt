@@ -32,3 +32,17 @@ Trung tâm IPD (viện phát triển tiềm năng con người)
 4) Về đổi tên đề tài, theo qui chế thì cần thực hiện trong vòng 2 năm đầu. Theo nhận xét của Thầy Nguyễn Việt Sơn, hôm em báo cáo tổng quan, thầy có nói rằng đề tài có bị rộng quá không? Và đúng là em cũng bị nhầm hướng sang student performance. Nên em cũng đang suy nghĩ thu gọn lại phạm vi của đề tài một chút và cập nhật tên đề tài luận văn ạ.
 ah, có một việc nữa em muốn hỏi ý kiến các thầy là em muốn đưa logo của BKHN và MICA vào sản phẩm thì có được không ạ, và phải làm như thế nào
 (ý em là xin ý kiến trường và viện MICA như thế nào)
+
+"1078": [
+    40,
+    3232.25,
+    359.890625,
+    1762075662.2284925
+  ]
+
+    "1078": [
+    40,
+    3232.0,
+    359.859375,
+    1762075725.3203986
+  ]

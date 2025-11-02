@@ -51,95 +51,20 @@ async def main(lidar: RPLidar):
                 pass
 
     async with asyncio.TaskGroup() as tg:
-        tg.create_task(wait_and_stop(10, lidar.stop_event))
+        # Replace timed stop with a keypress-based stop: wait for user to press 'q' then Enter
+        
+
+        tg.create_task(wait_for_q(lidar.stop_event))
         # Pass lidar.output_dict so the printer can augment it with timestamps
         # tg.create_task(queue_printer(lidar.output_queue, lidar.stop_event, lidar.output_dict))
         # Periodic saver: every 0.5s dump lidar.output_dict (if any) to file
-        async def periodic_task(interval: float = 0.5):
-            try:
-                while not lidar.stop_event.is_set():
-                    if lidar.output_dict:
-                        # helper to parse various sample formats into (r_meters, angle_deg)
-                        def parse_polar(sample):
-                            if sample is None:
-                                return None
-                            # tuple/list like (r, angle)
-                            if isinstance(sample, (list, tuple)) and len(sample) >= 2:
-                                try:
-                                    r = float(sample[0])
-                                    a = float(sample[1])
-                                    # convert mm->m if value looks like mm
-                                    if r > 50:
-                                        r = r / 1000.0
-                                    return (r, a)
-                                except Exception:
-                                    return None
-                            # dict-like sample
-                            if isinstance(sample, dict):
-                                try:
-                                    a = sample.get('a_deg') or sample.get('angle') or sample.get('a') or sample.get('ang')
-                                    d = sample.get('d_mm') or sample.get('distance') or sample.get('d') or sample.get('dist') or sample.get('r')
-                                    if a is None and d is None:
-                                        return None
-                                    a = float(a) if a is not None else 0.0
-                                    d = float(d) if d is not None else 0.0
-                                    if d > 50:
-                                        d = d / 1000.0
-                                    return (d, a)
-                                except Exception:
-                                    return None
-                            # unsupported type
-                            return None
-
-                        # scan forward sector
-                        for i in range(3 * 45):
-                            if i in lidar.output_dict:
-                                sample = lidar.output_dict[i]
-                                polar = parse_polar(sample)
-                                if polar is None:
-                                    continue
-                                r_m, angle_deg = polar
-                                try:
-                                    (xm, ym) = polar_to_cartesian_list([(r_m, angle_deg)], angle_unit='degree')[0]
-                                except Exception:
-                                    continue
-                                inside = point_in_polygon((xm, ym), cartesian_points)
-                                if inside:
-                                    u_m, v_m = map_point(H, xm, ym)
-                                    print(f"Floor point M({xm:.6f}, {ym:.6f}) is inside the quadrilateral")
-                                    print(f"Mapped pixel (u,v) = ({u_m:.6f}, {v_m:.6f})")
-                                else:
-                                    print(f"Floor point M({xm:.6f}, {ym:.6f}) is outside the quadrilateral; skipping mapping")
-
-                        # scan trailing sector
-                        for i in range(315 * 3, 360 * 3):
-                            if i in lidar.output_dict:
-                                sample = lidar.output_dict[i]
-                                polar = parse_polar(sample)
-                                if polar is None:
-                                    continue
-                                r_m, angle_deg = polar
-                                try:
-                                    (xm, ym) = polar_to_cartesian_list([(r_m, angle_deg)], angle_unit='degree')[0]
-                                except Exception:
-                                    continue
-                                inside = point_in_polygon((xm, ym), cartesian_points)
-                                if inside:
-                                    u_m, v_m = map_point(H, xm, ym)
-                                    print(f"Floor point M({xm:.6f}, {ym:.6f}) is inside the quadrilateral")
-                                    print(f"Mapped pixel (u,v) = ({u_m:.6f}, {v_m:.6f})")
-                                else:
-                                    print(f"Floor point M({xm:.6f}, {ym:.6f}) is outside the quadrilateral; skipping mapping")
-
-                    await asyncio.sleep(interval)
-            except asyncio.CancelledError:
-                # Task cancelled during shutdown
-                pass
-
-        tg.create_task(periodic_task(0.5))
+    
+        # tg.create_task(periodic_task(0.5))
+        tg.create_task(detect_foot(0.5))
         tg.create_task(_run_scan_safe())
 
-
+    '''
+    # Đoạn này để kiểm tra output_dict
     # Final flush (once): write output_dict if present
     if lidar.output_dict:
         try:
@@ -149,7 +74,7 @@ async def main(lidar: RPLidar):
                 json.dump(sorted_dict, f, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"Failed to write lidar.output_dict to file: {e}")
-
+    '''
     lidar.reset()
 
 async def wait_and_stop(t, event: asyncio.Event):
@@ -166,6 +91,146 @@ async def wait_and_stop(t, event: asyncio.Event):
     event.set()
     print(lidar.output_dict)
 
+async def wait_for_q(event: asyncio.Event):
+    """
+    Wait for the user to type 'q' (then Enter) in the console and set the stop event.
+    This uses run_in_executor to avoid blocking the event loop.
+    """
+    try:
+        print("Press 'q' then Enter to stop the scan")
+        loop = asyncio.get_running_loop()
+        # use blocking input() in a thread so it doesn't block the event loop
+        user_input = await loop.run_in_executor(None, input)
+        if isinstance(user_input, str) and user_input.strip().lower() == 'q':
+            print("Setting stop event (q pressed)")
+            event.set()
+    except Exception as e:
+        # If anything goes wrong, set event to ensure shutdown
+        print(f"wait_for_q encountered an error: {e}; setting stop event")
+        try:
+            event.set()
+        except Exception:
+            pass
+
+async def periodic_task(interval: float = 0.5):
+        try:
+            while not lidar.stop_event.is_set():
+                if lidar.output_dict:
+                    # helper to parse various sample formats into (r_meters, angle_deg)
+                    def parse_polar(sample):
+                        if sample is None:
+                            return None
+                        # tuple/list like (r, angle)
+                        if isinstance(sample, (list, tuple)) and len(sample) >= 2:
+                            try:
+                                r = float(sample[0])
+                                a = float(sample[1])
+                                # convert mm->m if value looks like mm
+                                if r > 50:
+                                    r = r / 1000.0
+                                return (r, a)
+                            except Exception:
+                                return None
+                        # dict-like sample
+                        if isinstance(sample, dict):
+                            try:
+                                a = sample.get('a_deg') or sample.get('angle') or sample.get('a') or sample.get('ang')
+                                d = sample.get('d_mm') or sample.get('distance') or sample.get('d') or sample.get('dist') or sample.get('r')
+                                if a is None and d is None:
+                                    return None
+                                a = float(a) if a is not None else 0.0
+                                d = float(d) if d is not None else 0.0
+                                if d > 50:
+                                    d = d / 1000.0
+                                return (d, a)
+                            except Exception:
+                                return None
+                        # unsupported type
+                        return None
+
+                    # scan forward sector
+                    for i in range(3 * 45):
+                        if i in lidar.output_dict:
+                            sample = lidar.output_dict[i]
+                            polar = parse_polar(sample)
+                            if polar is None:
+                                continue
+                            r_m, angle_deg = polar
+                            try:
+                                (xm, ym) = polar_to_cartesian_list([(r_m, angle_deg)], angle_unit='degree')[0]
+                            except Exception:
+                                continue
+                            inside = point_in_polygon((xm, ym), cartesian_points)
+                            if inside:
+                                u_m, v_m = map_point(H, xm, ym)
+                                print(f"Floor point M({xm:.6f}, {ym:.6f}) is inside the quadrilateral")
+                                print(f"Mapped pixel (u,v) = ({u_m:.6f}, {v_m:.6f})")
+                            else:
+                                print(f"Floor point M({xm:.6f}, {ym:.6f}) is outside the quadrilateral; skipping mapping")
+
+                    # scan trailing sector
+                    for i in range(315 * 3, 360 * 3):
+                        if i in lidar.output_dict:
+                            sample = lidar.output_dict[i]
+                            polar = parse_polar(sample)
+                            if polar is None:
+                                continue
+                            r_m, angle_deg = polar
+                            try:
+                                (xm, ym) = polar_to_cartesian_list([(r_m, angle_deg)], angle_unit='degree')[0]
+                            except Exception:
+                                continue
+                            inside = point_in_polygon((xm, ym), cartesian_points)
+                            if inside:
+                                u_m, v_m = map_point(H, xm, ym)
+                                print(f"Floor point M({xm:.6f}, {ym:.6f}) is inside the quadrilateral")
+                                print(f"Mapped pixel (u,v) = ({u_m:.6f}, {v_m:.6f})")
+                            else:
+                                print(f"Floor point M({xm:.6f}, {ym:.6f}) is outside the quadrilateral; skipping mapping")
+
+                await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            # Task cancelled during shutdown
+            pass
+
+
+async def detect_foot(interval: float = 0.5):
+    """
+    Periodically check lidar output_dict for foot presence.
+
+    Args:
+        interval (float): Time in seconds between checks.
+    """
+    try:
+        while not lidar.stop_event.is_set():
+            # Implement foot detection logic here
+            # For example, check if any points fall within a certain range
+            # and angle that corresponds to foot position
+            if lidar.output_dict:
+                # Kiểm tra vùng phía trái, ứng với góc từ 315° đến 360°
+                for i in range(315 * 3, 360 * 3):
+                    print("LEFT...")
+                    try:
+                        d = lidar.output_dict[i][1]
+                        if d is not None:
+                            print(f"Distance at angle {i/3}°: {d} milimeters")
+                    except Exception:
+                        pass
+
+                # Kiểm tra vùng phía phải, ứng với góc từ 0° đến 45°
+                for i in range(0, 45 * 3):
+                    print("RIGHT...")
+                    try:
+                        d = lidar.output_dict[i][1]
+                        if d is not None:
+                            print(f"Distance at angle {i/3}°: {d} milimeters")
+                    except Exception:
+                        pass
+
+            await asyncio.sleep(interval)
+    except asyncio.CancelledError:
+        # Task cancelled during shutdown
+        pass
 
 def compute_homography(src_pts: Sequence[Tuple[float, float]], dst_pts: Sequence[Tuple[float, float]]) -> np.ndarray:
     """

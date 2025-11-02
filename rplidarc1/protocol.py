@@ -303,7 +303,7 @@ class Response:
                 i = math.floor(angle * 3) - 1
                 if i < 0:
                     i = 0
-                output_dict[i] = (distance, angle)
+                output_dict[i] = (quality, distance, angle, time.time())
             
         Response.logger.info("Completed processing.")
         await asyncio.sleep(0)
@@ -415,6 +415,9 @@ class Response:
         """
         quality = (response[0] >> 2) & 0b111111
         angle = ((response[1] & 0b01111111) | (response[2] << 7)) / 64
+        angle = round(
+            (round(angle * 3) / 3), 2
+        )  # round to closest 0.33 which is precision of rplidarc1
         if angle > 360:
             Response.logger.error(
                 f"calculated angle {angle} from {response}. Angles should not be >360 so this result will be ignored."

@@ -13,6 +13,8 @@ response = Response.handle_response(serial=lidar._serial, length=length)
 # print("Healthcheck Response:", response)
 if response[0] == 0:
     print("Lidar status: Good")
+else:
+    print("Lidar status: Error")
 
 # scan_request = Request.create_request(protocol.RequestBytes.SCAN_BYTE)
 scan_request = Request.create_request(protocol.RequestBytes.INFO_BYTE)
@@ -30,7 +32,7 @@ if series == 0x04 :
     print(f"The model is C1M{model}.")
 else:
     S_series = series - 5 - 5 # Check lại chỗ này, trừ 5 một hay hai lần
-    print(f"This is a RPLIDAR S{series} device.")
+    print(f"This is a RPLIDAR S{S_series} device.")
     print(f"The model is S{S_series}M{model}.")
 
 print(f"Firmware version: {response[2]}.{response[1]}")
