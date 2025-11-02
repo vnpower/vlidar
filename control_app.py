@@ -8,6 +8,13 @@ from datetime import datetime
 import math
 import numpy as np
 from typing import Sequence, Tuple
+import pyautogui
+import cv2
+import tkinter as tk
+from PIL import Image, ImageDraw, ImageTk
+import time
+
+
 
 """
 This module provides an example of how to use the RPLidar class to perform
@@ -208,25 +215,48 @@ async def detect_foot(interval: float = 0.5):
             # and angle that corresponds to foot position
             if lidar.output_dict:
                 # Kiểm tra vùng phía trái, ứng với góc từ 315° đến 360°
+                print("LEFT...", datetime.now().isoformat())
                 for i in range(315 * 3, 360 * 3):
-                    print("LEFT...")
+                    
                     try:
                         d = lidar.output_dict[i][1]
+                        a = lidar.output_dict[i][2]
                         if d is not None:
-                            print(f"Distance at angle {i/3}°: {d} milimeters")
+                            # print(f"Distance at angle {i/3: 0.2f}°: {d} milimeters", datetime.now().isoformat())
+                            M = (d / 1000.0, a)  # Chuyển mm sang m
+                            (xm, ym) = polar_to_cartesian_list([M], angle_unit='degree')[0]
+                            inside = point_in_polygon((xm, ym), cartesian_points)
+                            if inside:
+                                u_m, v_m = map_point(H, xm, ym)
+                                print(f"Floor point M({xm:.6f}, {ym:.6f}) is inside the quadrilateral")
+                                print(f"Mapped pixel (u,v) = ({u_m:.6f}, {v_m:.6f})")
+                                await circle_points(u_m, v_m)
+
+
                     except Exception:
                         pass
 
                 # Kiểm tra vùng phía phải, ứng với góc từ 0° đến 45°
+                print("RIGHT...", datetime.now().isoformat())
                 for i in range(0, 45 * 3):
-                    print("RIGHT...")
+                    
                     try:
                         d = lidar.output_dict[i][1]
+                        a = lidar.output_dict[i][2]
                         if d is not None:
-                            print(f"Distance at angle {i/3}°: {d} milimeters")
+                            # print(f"Distance at angle {i/3: 0.2f}°: {d} milimeters", datetime.now().isoformat())
+                            M = (d / 1000.0, a)  # Chuyển mm sang m
+                            (xm, ym) = polar_to_cartesian_list([M], angle_unit='degree')[0]
+                            inside = point_in_polygon((xm, ym), cartesian_points)
+                            if inside:
+                                u_m, v_m = map_point(H, xm, ym)
+                                print(f"Floor point M({xm:.6f}, {ym:.6f}) is inside the quadrilateral")
+                                print(f"Mapped pixel (u,v) = ({u_m:.6f}, {v_m:.6f})")
+                                await circle_points(u_m, v_m)
+
                     except Exception:
                         pass
-
+            
             await asyncio.sleep(interval)
     except asyncio.CancelledError:
         # Task cancelled during shutdown
@@ -268,6 +298,38 @@ def compute_homography(src_pts: Sequence[Tuple[float, float]], dst_pts: Sequence
     ], dtype=float)
     return H
 
+def circle_points(w:int, h:int):
+
+    radius = 20
+    thickness = 4
+
+    # Tạo cửa sổ overlay
+    root = tk.Tk()
+    root.overrideredirect(True)  # Không viền
+    root.attributes("-topmost", True)  # Luôn trên cùng
+    root.attributes("-transparentcolor", "white")  # Màu nền trong suốt
+
+    # Đặt vị trí cửa sổ
+    root.geometry(f"{radius*2+thickness*2}x{radius*2+thickness*2}+{w-radius-thickness}+{h-radius-thickness}")
+
+    # Tạo ảnh vòng tròn
+    size = radius*2 + thickness*2
+    image = Image.new("RGBA", (size, size), (255, 255, 255, 0))
+    draw = ImageDraw.Draw(image)
+    draw.ellipse(
+        [thickness, thickness, size-thickness, size-thickness],
+        outline="red", width=thickness
+    )
+    photo = ImageTk.PhotoImage(image)
+
+    # Hiển thị ảnh trong canvas
+    canvas = tk.Canvas(root, width=size, height=size, bg="white", highlightthickness=0)
+    canvas.pack()
+    canvas.create_image(0, 0, anchor=tk.NW, image=photo)
+
+    # Hiển thị trong 1 giây
+    root.after(1000, root.destroy)
+    root.mainloop()
 
 def map_point(H: np.ndarray, x: float, y: float) -> Tuple[float, float]:
     """Apply homography H to floor point (x,y) and return pixel (u,v).
@@ -431,23 +493,36 @@ if __name__ == "__main__":
     # lidar = RPLidar("/dev/ttyUSB0", 460800) # Linux/Mac
     lidar = RPLidar("\\\\.\\COM6", 460800) # Comm port 6 on Windows
     # Nhập khoảng cách và góc cho 4 đỉnh (theo độ)
+    img = cv2.imread("bg1920x1080.png")
     polar_points = [
         (1.141, 45),  # r1, theta1
         (2.773, 25.64),  # r2, theta2
         (2.773, 334.36), # r3, theta3
         (1.141, 315)   # r4, theta4
     ]
+
+    A = (0.8, 0.5)
+    B = (0.9, 1.5)
+    C = (-0.9, 1.5)
+    D = (-0.8, 0.5)
+
     cartesian_points = polar_to_cartesian_list(polar_points, angle_unit='degree')
+
+    src = [A, B, C, D]
     
-    dst = [(0.0, 0.0), (0.0, 600.0), (800.0, 600.0), (800.0, 0.0)]
-    H = compute_homography(cartesian_points, dst)
-    M = (4, 350)
+    # dst = [(0.0, 0.0), (0.0, 600.0), (800.0, 600.0), (800.0, 0.0)]
+    dst = [(0.0, 0.0), (0.0, 1080.0), (1920.0, 1080.0), (1920.0, 0.0)]
+
+    # H = compute_homography(cartesian_points, dst)
+    H = compute_homography(src, dst)
+    M = (2, 350)
     (xm, ym) = polar_to_cartesian_list([M], angle_unit='degree')[0]
     inside = point_in_polygon((xm, ym), cartesian_points)
     if inside:
         u_m, v_m = map_point(H, xm, ym)
         print(f"Floor point M({xm:.6f}, {ym:.6f}) is inside the quadrilateral")
         print(f"Mapped pixel (u,v) = ({u_m:.6f}, {v_m:.6f})")
+        circle_points(u_m, v_m)
     else:
         print(f"Floor point M({xm:.6f}, {ym:.6f}) is outside the quadrilateral; skipping mapping")
 
@@ -458,6 +533,7 @@ if __name__ == "__main__":
         asyncio.run(main(lidar))
     except KeyboardInterrupt:
         pass
+    
     finally:
         time.sleep(1)
         lidar.reset()
