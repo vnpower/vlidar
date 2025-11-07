@@ -13,8 +13,6 @@ import cv2
 import tkinter as tk
 from PIL import Image, ImageDraw, ImageTk
 import time
-from sklearn.cluster import DBSCAN  # For clustering points
-import matplotlib.pyplot as plt  # For color maps
 try:
     import msvcrt
     _have_msvcrt = True
@@ -52,7 +50,7 @@ async def main(lidar: RPLidar):
         TaskGroup failing to create the task.
         """
         try:
-            coro = lidar.simple_scan(export_scan_map=True)
+            coro = lidar.simple_scan(make_return_dict=True)
             # If simple_scan returned a coroutine, await it
             if asyncio.iscoroutine(coro):
                 await coro
@@ -65,28 +63,20 @@ async def main(lidar: RPLidar):
                 pass
 
     async with asyncio.TaskGroup() as tg:
-        # Replace timed stop with a keypress-based stop: wait for user to press 'q' then Enter
-        
-        tg.create_task(wait_for_q(lidar.stop_event))
-        # Pass lidar.full_scan_map so the printer can augment it with timestamps
-        # tg.create_task(queue_printer(lidar.output_queue, lidar.stop_event, lidar.full_scan_map))
-        # Periodic saver: every 0.5s dump lidar.full_scan_map (if any) to file
-    
-        # tg.create_task(periodic_task(0.5))
-        tg.create_task(detect_foot(0.5))
+        tg.create_task(wait_and_stop(10, lidar.stop_event))
         tg.create_task(_run_scan_safe())
 
     '''
-    # Đoạn này để kiểm tra full_scan_map
-    # Final flush (once): write full_scan_map if present
-    if lidar.full_scan_map:
+    # Đoạn này để kiểm tra output_dict
+    # Final flush (once): write output_dict if present
+    if lidar.output_dict:
         try:
-            sorted_items = sorted(lidar.full_scan_map.items(), key=lambda kv: kv[0])
+            sorted_items = sorted(lidar.output_dict.items(), key=lambda kv: kv[0])
             sorted_dict = {k: v for k, v in sorted_items}
             with open("lidar_output.txt", "w", encoding="utf-8") as f:
                 json.dump(sorted_dict, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print(f"Failed to write lidar.full_scan_map to file: {e}")
+            print(f"Failed to write lidar.output_dict to file: {e}")
     '''
     lidar.reset()
 
@@ -102,7 +92,7 @@ async def wait_and_stop(t, event: asyncio.Event):
     await asyncio.sleep(t)
     print("Setting stop event")
     event.set()
-    print(lidar.full_scan_map)
+    print(lidar.output_dict)
 
 async def wait_for_q(event: asyncio.Event):
     """
@@ -150,7 +140,7 @@ async def wait_for_q(event: asyncio.Event):
 async def periodic_task(interval: float = 0.5):
         try:
             while not lidar.stop_event.is_set():
-                if lidar.full_scan_map:
+                if lidar.output_dict:
                     # helper to parse various sample formats into (r_meters, angle_deg)
                     def parse_polar(sample):
                         if sample is None:
@@ -185,8 +175,8 @@ async def periodic_task(interval: float = 0.5):
 
                     # scan forward sector
                     for i in range(3 * 45):
-                        if i in lidar.full_scan_map:
-                            sample = lidar.full_scan_map[i]
+                        if i in lidar.output_dict:
+                            sample = lidar.output_dict[i]
                             polar = parse_polar(sample)
                             if polar is None:
                                 continue
@@ -205,8 +195,8 @@ async def periodic_task(interval: float = 0.5):
 
                     # scan trailing sector
                     for i in range(315 * 3, 360 * 3):
-                        if i in lidar.full_scan_map:
-                            sample = lidar.full_scan_map[i]
+                        if i in lidar.output_dict:
+                            sample = lidar.output_dict[i]
                             polar = parse_polar(sample)
                             if polar is None:
                                 continue
@@ -230,13 +220,11 @@ async def periodic_task(interval: float = 0.5):
 
 async def detect_foot(interval: float = 0.5):
     """
-    Periodically check lidar full_scan_map for foot presence and cluster nearby points.
+    Periodically check lidar output_dict for foot presence.
 
     Args:
         interval (float): Time in seconds between checks.
     """
-    # Dictionary to store points for clustering
-    current_points = []
     try:
         # helper to extract (distance_mm, angle_deg) from common sample formats
         def extract_distance_angle(sample):
@@ -268,12 +256,12 @@ async def detect_foot(interval: float = 0.5):
             return None
 
         while not lidar.stop_event.is_set():
-            if lidar.full_scan_map:
+            if lidar.output_dict:
                 # Kiểm tra vùng phía trái, ứng với góc từ 315° đến 360°
                 print("LEFT...", datetime.now().isoformat())
                 for i in range(315 * 3, 360 * 3):
                     try:
-                        sample = lidar.full_scan_map.get(i)
+                        sample = lidar.output_dict.get(i)
                         parsed = extract_distance_angle(sample)
                         if parsed is None:
                             continue
@@ -288,59 +276,20 @@ async def detect_foot(interval: float = 0.5):
                             print(f"Floor point M({xm:.6f}, {ym:.6f}) is inside the quadrilateral")
                             print(f"Mapped pixel (u,v) = ({u_m:.6f}, {v_m:.6f})")
                             # Draw circle in separate thread so we don't block the event loop
-                            current_points.append((u_m, v_m))
+                            try:
+                                loop = asyncio.get_running_loop()
+                                await loop.run_in_executor(None, circle_points, int(round(u_m)), int(round(v_m)))
+                            except Exception as e:
+                                print(f"Failed to draw circle: {e}")
                     except Exception:
-                        return None
-                
+                        # ignore individual sample errors and continue
+                        pass
 
-            # After collecting points, perform clustering
-            try:
-                if len(current_points) >= 3:  # Only cluster if we have enough points
-                    points = np.array(current_points)
-                    clustering = DBSCAN(eps=50, min_samples=3).fit(points)
-                    labels = clustering.labels_
-
-                    # Clear the image for new drawing
-                    if not hasattr(lidar, '_image_array'):
-                        lidar._image_array = np.zeros((1080, 1920, 3), dtype=np.uint8)
-                    else:
-                        lidar._image_array.fill(0)  # Clear the array
-
-                    # Draw points with their cluster colors
-                    unique_labels = set(labels)
-                    colors = [(255,0,0), (0,255,0), (0,0,255), (255,255,0), 
-                             (255,0,255), (0,255,255)]  # Predefined colors for clusters
-
-                    for k, point in enumerate(points):
-                        if labels[k] == -1:  # Noise points in black
-                            cv2.drawMarker(lidar._image_array, 
-                                         (int(point[0]), int(point[1])), 
-                                         (128, 128, 128), cv2.MARKER_CROSS, 10)
-                        else:  # Clustered points in their cluster colors
-                            color = colors[labels[k] % len(colors)]
-                            cv2.drawMarker(lidar._image_array, 
-                                         (int(point[0]), int(point[1])), 
-                                         color, cv2.MARKER_CROSS, 10)
-
-                            # Draw cluster boundaries
-                            cluster_points = points[labels == labels[k]]
-                            if len(cluster_points) > 2:  # Only draw boundary if we have enough points
-                                hull = cv2.convexHull(cluster_points.astype(np.int32))
-                                cv2.drawContours(lidar._image_array, [hull], 0, color, 2)
-
-                    # Update the display
-                    cv2.imshow('Clusters', lidar._image_array)
-                    cv2.waitKey(1)  # Brief pause to update display
-
-                    # Clear points for next iteration
-                    current_points = []
-            except Exception as e:
-                print(f"Failed to process points: {e}")
-                current_points = []  # Reset on error                # Kiểm tra vùng phía phải, ứng với góc từ 0° đến 45°
+                # Kiểm tra vùng phía phải, ứng với góc từ 0° đến 45°
                 print("RIGHT...", datetime.now().isoformat())
                 for i in range(0, 45 * 3):
                     try:
-                        sample = lidar.full_scan_map.get(i)
+                        sample = lidar.output_dict.get(i)
                         parsed = extract_distance_angle(sample)
                         if parsed is None:
                             continue
@@ -654,7 +603,7 @@ if __name__ == "__main__":
 
     floor_points = [A, B, C, D]
 
-    projector_resolution = (1920, 1080)
+    projector_resolution = (800, 600)
 
     # Vị trí trên sàn cần tìm (X, Y)
     X, Y = 0, 50

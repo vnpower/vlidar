@@ -1,5 +1,10 @@
-def fun(**kwargs):
-    for k, val in kwargs.items():
-        print(k, "=", val)
+import math
+import pyautogui
 
-fun(s1='Python', s2='is', s3='Awesome')
+# Di chuyển chuột đến vị trí (x=500, y=300)
+pyautogui.moveTo(1920+500, 300)
+
+# Click chuột trái tại vị trí đó
+pyautogui.click()
+
+print(math.sin(340 * math.pi / 180.0 ))

@@ -33,7 +33,7 @@ class RPLidar:
         self.logger = logging.getLogger("RPLidar")
         self.stop_event = asyncio.Event()
         self.output_queue = asyncio.Queue()
-        self.output_dict = None
+        self.full_scan_map = None
 
         self._initialize()
 
@@ -123,7 +123,7 @@ class RPLidar:
         """
         raise NotImplementedError
 
-    def simple_scan(self, make_return_dict: bool = False) -> CoroutineType:
+    def simple_scan(self, export_scan_map: bool = False) -> CoroutineType:
         """
         Start a simple scan operation on the RPLidar device.
 
@@ -132,7 +132,7 @@ class RPLidar:
 
         Args:
             make_return_dict (bool): If True, scan results will also be stored
-                in the output_dict attribute. Default is False.
+                in the full_scan_map attribute. Default is False.
 
         Returns:
             CoroutineType: A coroutine that handles the scan response data.
@@ -142,7 +142,7 @@ class RPLidar:
             TypeError: If the response handler is not a coroutine.
         """
         self.logger.debug("Starting reset sequence.")
-        if make_return_dict:
+        if export_scan_map:
             self._init_return_dict()
         scan_request = Request.create_request(protocol.RequestBytes.SCAN_BYTE)
         Request.send_request(self._serial, scan_request)
@@ -157,7 +157,31 @@ class RPLidar:
             stop_event=self.stop_event,
             output_queue=self.output_queue,
             length=length,
-            output_dict=self.output_dict,
+            full_scan_map=self.full_scan_map,
+        )
+        if type(response_handler) != CoroutineType:
+            self.logger.error("Somehow this did not return Coroutine type. Unexpected.")
+            raise TypeError
+        return response_handler
+
+    def scan_and_split(self, export_scan_map: bool = False, theta_D: int = 45, theta_A: int = 315) -> CoroutineType:
+        self.logger.debug("Starting reset sequence.")
+        if export_scan_map:
+            self._init_return_dict()
+        scan_request = Request.create_request(protocol.RequestBytes.SCAN_BYTE)
+        Request.send_request(self._serial, scan_request)
+        length, mode = Response.parse_response_descriptor(self._serial)
+        if mode != protocol.ResponseMode.MUTLI_RESPONSE:
+            self.logger.error(
+                "Somehow got single response mode marker for scan request. This is incorrect."
+            )
+            raise Exception
+        response_handler = Response.handle_response(
+            serial=self._serial,
+            stop_event=self.stop_event,
+            output_queue=self.output_queue,
+            length=length,
+            full_scan_map=self.full_scan_map,
         )
         if type(response_handler) != CoroutineType:
             self.logger.error("Somehow this did not return Coroutine type. Unexpected.")
@@ -173,7 +197,7 @@ class RPLidar:
 
         Args:
             make_return_dict (bool): If True, scan results will also be stored
-                in the output_dict attribute. Default is False.
+                in the full_scan_map attribute. Default is False.
 
         Returns:
             CoroutineType: A coroutine that handles the scan response data.
@@ -198,7 +222,7 @@ class RPLidar:
             stop_event=self.stop_event,
             output_queue=self.output_queue,
             length=length,
-            output_dict=self.output_dict,
+            full_scan_map=self.full_scan_map,
         )
         if type(response_handler) != CoroutineType:
             self.logger.error("Somehow this did not return Coroutine type. Unexpected.")
@@ -220,4 +244,4 @@ class RPLidar:
 
         This method is called when make_return_dict is set to True in simple_scan.
         """
-        self.output_dict = {}
+        self.full_scan_map = {}

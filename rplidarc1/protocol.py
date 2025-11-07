@@ -252,7 +252,7 @@ class Response:
         stop_event: asyncio.Event,
         output_queue: asyncio.Queue,
         length: int,
-        output_dict: Optional[dict],
+        full_scan_map: Optional[dict],
     ):
         """
         Handle multiple responses from the RPLidar device.
@@ -299,11 +299,11 @@ class Response:
                 continue
             quality, angle, distance = parsed_tuple
             distance = None if distance == 0 else distance
-            if output_dict is not None:
+            if full_scan_map is not None:
                 i = math.floor(angle * 3) - 1
                 if i < 0:
                     i = 0
-                output_dict[i] = (quality, distance, angle, time.time())
+                full_scan_map[i] = (quality, distance, angle, time.time())
             
         Response.logger.info("Completed processing.")
         await asyncio.sleep(0)

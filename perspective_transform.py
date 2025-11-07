@@ -19,9 +19,9 @@ def floor_to_projector_pixel(
     # 4 điểm góc máy chiếu (theo chiều kim đồng hồ)
     proj_pts = np.array([
         [0, 0],
-        [projector_resolution[0] - 1, 0],
+        [0, projector_resolution[1] - 1],
         [projector_resolution[0] - 1, projector_resolution[1] - 1],
-        [0, projector_resolution[1] - 1]
+        [projector_resolution[0] - 1, 0]
     ], dtype=np.float32)
     floor_pts = np.array(floor_points, dtype=np.float32)
     # Ma trận biến đổi phối cảnh: từ sàn về máy chiếu
@@ -97,14 +97,14 @@ def click_on_extended_monitor(px, py, main_screen_width=1920, main_screen_height
 if __name__ == "__main__":
     # Định nghĩa 4 điểm tứ giác trên sàn (ngược chiều kim đồng hồ, đơn vị cm)
     # Ví dụ:
-    A = (0, 0)
-    B = (280, 0)
-    C = (280, 180)
-    D = (0, 180)
+    A = (80, 50)
+    B = (90, 150)
+    C = (-90, 150)
+    D = (-80, 50)
     floor_points = [A, B, C, D]
     projector_resolution = (800, 600)
     # Vị trí trên sàn cần tìm (X, Y)
-    X, Y = 140, 90
+    X, Y = 0, 50
     # Kiểm tra nếu vị trí nằm trong tứ giác
     if is_point_in_floor_polygon(floor_points, (X, Y)):
         px, py = floor_to_projector_pixel(floor_points, projector_resolution, (X, Y))
